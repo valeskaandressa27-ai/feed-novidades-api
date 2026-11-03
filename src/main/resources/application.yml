@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: feed-novidades-api
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/feed_novidades}
+    username: ${DB_USER:feed}
+    password: ${DB_PASSWORD:feed}
+  jpa:
+    open-in-view: false
+    hibernate:
+      # O schema é responsabilidade do Flyway; o Hibernate apenas valida.
+      ddl-auto: validate
+  flyway:
+    enabled: true
+
+server:
+  error:
+    include-stacktrace: never
+    include-message: never
