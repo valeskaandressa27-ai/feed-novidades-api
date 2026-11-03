@@ -1,0 +1,22 @@
+# Build
+target/
+build/
+*.class
+*.jar
+
+# Segredos e ambiente local
+.env
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# SO
+.DS_Store
+
+# Material de estudo pessoal
+ESTUDO.md
