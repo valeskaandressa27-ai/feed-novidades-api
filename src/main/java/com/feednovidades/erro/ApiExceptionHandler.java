@@ -15,6 +15,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 /**
@@ -77,7 +78,12 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @Override
     protected ResponseEntity<Object> handleTypeMismatch(
             TypeMismatchException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
-        String nome = ex.getPropertyName() != null ? ex.getPropertyName() : "parâmetro";
+        String nome = "parâmetro";
+        if (ex instanceof MethodArgumentTypeMismatchException tipo) {
+            nome = tipo.getName();
+        } else if (ex.getPropertyName() != null) {
+            nome = ex.getPropertyName();
+        }
         return resposta(UNPROCESSABLE, "VALIDACAO", "Valor inválido para '" + nome + "'", List.of());
     }
 
