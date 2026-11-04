@@ -1,6 +1,5 @@
 package com.feednovidades.seguidor;
 
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,8 +10,6 @@ import com.feednovidades.loja.LojaRepository;
 
 @Service
 public class SeguidorService {
-
-    private static final String JA_SEGUE = "O cliente já segue esta loja";
 
     private final SeguidorRepository seguidorRepository;
     private final ClienteRepository clienteRepository;
@@ -34,15 +31,13 @@ public class SeguidorService {
         if (!lojaRepository.existsById(lojaId)) {
             throw new RecursoNaoEncontradoException("Loja " + lojaId + " não encontrada");
         }
-        if (seguidorRepository.existsById(new SeguidorId(clienteId, lojaId))) {
-            throw new ConflitoException(JA_SEGUE);
-        }
-        try {
-            seguidorRepository.saveAndFlush(new Seguidor(clienteId, lojaId));
-        } catch (DataIntegrityViolationException e) {
-            // Corrida: a PK composta barrou um insert simultâneo do mesmo par.
-            throw new ConflitoException(JA_SEGUE);
+
+        // A decisão "já existe?" é feita pelo banco, atomicamente: 0 linhas inseridas = já seguia.
+        // Isso vale também para requisições simultâneas do mesmo par (só uma insere).
+        int inseridas = seguidorRepository.inserirSeNaoExistir(clienteId, lojaId);
+        if (inseridas == 0) {
+            throw new ConflitoException("O cliente já segue esta loja");
         }
         return new SeguidorResponse(clienteId, lojaId);
     }
-}
+}    
