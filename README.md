@@ -2,7 +2,7 @@
 
 API REST em que **clientes seguem lojas** e acompanham, em um **feed**, as novidades que essas lojas publicam (da mais recente para a mais antiga).
 
-Stack: Java 21, Spring Boot 3.5, Spring Data JPA, PostgreSQL 16, Flyway, Docker Compose, JUnit 5 e Testcontainers.
+Stack: Java 21, Spring Boot 3.5.16, Spring Data JPA, PostgreSQL 16, Flyway, Docker Compose, JUnit 5 e Testcontainers.
 
 ## 1. Como rodar do zero
 
@@ -35,6 +35,8 @@ mvn test
 ```
 
 Os testes são de integração e usam **PostgreSQL real via Testcontainers**: precisam do Docker em execução, mas **não** dependem do `docker compose up` (o Testcontainers sobe um container próprio e descartável). Se o Docker não estiver disponível, os testes falham de propósito, em vez de trocar o banco por outro.
+
+Se aparecer `Could not find a valid Docker environment` ou `client version ... is too old`, confirme que o Docker está aberto e atualize o projeto (o `pom.xml` já fixa o Testcontainers 1.21.4, compatível com Docker 29+).
 
 Cobertura: feed (só lojas seguidas, ordem, desempate, limite padrão/máximo/inválido), seguir (sucesso, 404, 409 e requisições simultâneas), publicar novidade (limites de texto, preço, loja inexistente, JSON malformado), cliente (e-mail duplicado, campos obrigatórios) e loja.
 
@@ -156,3 +158,4 @@ O custo da leitura cresce com quantas lojas o cliente segue, não com quantos se
 - **Cache** do feed (ex.: Redis, invalidado na publicação) se a leitura virar gargalo.
 - **Autenticação/autorização** e limite de taxa.
 - Um **`mvnw`** (Maven Wrapper) para dispensar a instalação do Maven.
+- **Migrar para Spring Boot 4.x**: a linha 3.5 (usada aqui, na última versão 3.5.16) encerrou o suporte open source em 30/06/2026.
