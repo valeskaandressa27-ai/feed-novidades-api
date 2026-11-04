@@ -128,7 +128,7 @@ O custo da leitura cresce com quantas lojas o cliente segue, não com quantos se
 
 **Desempate por `id`.** Duas novidades podem ter o mesmo `criada_em`; sem desempate a ordem poderia variar entre chamadas.
 
-**`seguidor` com PK composta `(cliente_id, loja_id)`.** O próprio banco impede seguir duas vezes. O serviço também checa antes (para dar mensagem clara), e a violação de PK por requisições simultâneas é convertida em 409.
+**`seguidor` com PK composta `(cliente_id, loja_id)` e inserção atômica.** O próprio banco impede seguir duas vezes. O vínculo é criado com `INSERT ... ON CONFLICT DO NOTHING`: o PostgreSQL decide, em um único comando, se o par já existe, e o serviço responde 409 quando nenhuma linha é inserida. Isso vale também para requisições simultâneas do mesmo par (só uma insere). Não uso `save()` do JPA aqui: com chave atribuída ele faz `merge()`, que primeiro consulta a linha e, sob concorrência, podia achar o vínculo criado por outra requisição e responder 201 sem inserir nada (bug encontrado pelo teste de concorrência no CI).
 
 **E-mail normalizado em minúsculas** antes de salvar, para `Ana@x.com` e `ana@x.com` contarem como o mesmo e-mail. A constraint `UNIQUE` é a garantia final.
 

@@ -40,4 +40,4 @@ public class SeguidorService {
         }
         return new SeguidorResponse(clienteId, lojaId);
     }
-}    
+}
