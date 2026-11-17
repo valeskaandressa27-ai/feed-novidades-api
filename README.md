@@ -9,7 +9,7 @@ Stack: Java 21, Spring Boot 3.5.16, Spring Data JPA, PostgreSQL 16, Flyway, Dock
 **Pré-requisitos:** Java 21, Maven 3.9+ e Docker com Docker Compose.
 
 ```bash
-git clone <url-do-repositorio>
+git clone https://github.com/valeskaandressa27-ai/feed-novidades-api.git
 cd feed-novidades-api
 
 docker compose up -d        # sobe o PostgreSQL
