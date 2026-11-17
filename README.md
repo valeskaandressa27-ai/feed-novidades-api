@@ -112,6 +112,9 @@ Organização **por funcionalidade** (não por camada): cada pasta tem tudo o qu
 
 ## 5. Decisões técnicas
 
+As decisões principais também estão registradas como ADRs em [`docs/adr`](docs/adr).
+
+
 **Feed com fan-out on read.** O enunciado diz que o cliente abre o feed várias vezes por dia, a loja publica poucas vezes e lojas grandes passam de 100 mil seguidores. No *fan-out on write*, cada publicação de uma loja grande copiaria a novidade para 100 mil feeds, e isso para uma escrita rara. No *fan-out on read* a publicação é um único INSERT e o feed é montado na leitura, por um JOIN com `ORDER BY ... LIMIT` feito no banco (nada é carregado em memória para filtrar):
 
 ```sql
