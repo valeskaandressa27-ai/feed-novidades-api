@@ -6,6 +6,15 @@ API REST desenvolvida com **Java 21 e Spring Boot** para conectar clientes e loj
 
 O projeto demonstra implementação de APIs REST, persistência relacional, integridade de dados, tratamento padronizado de erros, testes de integração com PostgreSQL e automação de CI.
 
+
+## Acesso ao projeto
+
+- **Código-fonte:** [valeskaandressa27-ai/feed-novidades-api](https://github.com/valeskaandressa27-ai/feed-novidades-api)
+- **Execução local:** siga as instruções em [Como executar localmente](#como-executar-localmente).
+
+> **Demonstração online:** este repositório não possui, no momento, uma URL pública de uma instância da API. Para testar os endpoints, execute a aplicação localmente conforme as instruções abaixo.
+
+
 ## Visão geral
 
 - Cadastro de lojas e clientes.
