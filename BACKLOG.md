@@ -1,31 +1,38 @@
-# Backlog
+# Backlog e status de entrega
 
-## Obrigatório
+## Escopo obrigatório — concluído
 
-- [x] Repositório, branch `feat/api-feed`, `.gitignore` e `.env.example`
-- [x] Projeto Spring Boot (Java 21, Maven) e `docker-compose.yml` só com PostgreSQL
-- [x] Migration Flyway: `loja`, `cliente`, `seguidor`, `novidade` + índice do feed
-- [x] Formato único de erro com `@RestControllerAdvice` (404 / 409 / 422)
-- [x] `POST /lojas`
-- [x] `POST /clientes` (e-mail único, normalizado)
-- [x] `POST /clientes/{id}/seguindo/{lojaId}` (404 e 409, inclusive em concorrência)
-- [x] `POST /lojas/{id}/novidades` (texto 1–500, preço > 0)
-- [x] `GET /clientes/{id}/feed?limite=20` (fan-out on read, limite padrão 20 / máx. 50)
-- [x] Testes de integração com Testcontainers (feed, seguir, publicar, cliente, loja)
-- [x] Seed (`-Dspring-boot.run.profiles=seed`)
-- [x] Arquivo `requests.http` com exemplos
-- [x] README com os itens exigidos
+- [x] Repositório, branch de desenvolvimento, `.gitignore` e `.env.example`
+- [x] Projeto Spring Boot com Java 21, Maven e PostgreSQL via Docker Compose
+- [x] Migration Flyway para lojas, clientes, seguidores e novidades, com índice para o feed
+- [x] Tratamento padronizado de erros HTTP (404, 409 e 422)
+- [x] Cadastro de lojas: `POST /lojas`
+- [x] Cadastro de clientes com e-mail único e normalizado: `POST /clientes`
+- [x] Relacionamento cliente/loja com tratamento atômico de duplicidade e concorrência
+- [x] Publicação de novidades com validação de texto e preço
+- [x] Feed personalizado com fan-out on read, ordenação determinística e limite máximo de 50
+- [x] Testes de integração com PostgreSQL via Testcontainers
+- [x] Perfil de seed para dados de demonstração
+- [x] Exemplos de requisição em `requests.http`
+- [x] Documentação de arquitetura, execução, endpoints e decisões técnicas no README
+- [x] Pipeline de integração contínua com GitHub Actions
 
-## Para fechar antes de entregar
+## Verificações antes de uma nova apresentação
 
-- [ ] Rodar `mvn test` localmente (Docker ligado) e confirmar que passa
-- [ ] Rodar o passo a passo do README em um clone limpo
-- [ ] Conferir se o CI do GitHub Actions ficou verde
-- [ ] Abrir o Pull Request `feat/api-feed` → `main` com a descrição preparada
+Estas verificações operacionais devem ser repetidas após alterações no código:
 
-## Diferenciais
+- [ ] Executar `mvn -B verify` com Docker disponível
+- [ ] Confirmar a última execução do GitHub Actions como concluída e aprovada
+- [ ] Reproduzir o passo a passo do README em um ambiente limpo
 
-- [x] CI simples com GitHub Actions
-- [ ] Deixar de seguir (`DELETE /clientes/{id}/seguindo/{lojaId}`)
+> A lista acima não indica funcionalidades obrigatórias ausentes. São verificações de qualidade a repetir antes de uma nova entrega ou alteração.
+
+## Melhorias futuras — fora do escopo entregue
+
+- [ ] Endpoint para deixar de seguir uma loja (`DELETE /clientes/{id}/seguindo/{lojaId}`)
 - [ ] Paginação por cursor no feed
-- [ ] Documentação OpenAPI/Swagger
+- [ ] Documentação interativa com OpenAPI/Swagger
+- [ ] Testes unitários específicos para serviços, além dos testes de integração existentes
+- [ ] Avaliar otimizações/cache somente após medições de desempenho
+- [ ] Autenticação, autorização e rate limiting
+- [ ] Maven Wrapper para padronizar a execução sem Maven instalado
