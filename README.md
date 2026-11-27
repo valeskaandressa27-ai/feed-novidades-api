@@ -1,164 +1,310 @@
 # Feed de Novidades API
 
-API REST em que **clientes seguem lojas** e acompanham, em um **feed**, as novidades que essas lojas publicam (da mais recente para a mais antiga).
+[![CI](https://github.com/valeskaandressa27-ai/feed-novidades-api/actions/workflows/ci.yml/badge.svg)](https://github.com/valeskaandressa27-ai/feed-novidades-api/actions/workflows/ci.yml)
 
-Stack: Java 21, Spring Boot 3.5.16, Spring Data JPA, PostgreSQL 16, Flyway, Docker Compose, JUnit 5 e Testcontainers.
+API REST desenvolvida com **Java 21 e Spring Boot** para conectar clientes e lojas: clientes seguem lojas e recebem, em um feed personalizado, as novidades publicadas pelas lojas que acompanham.
 
-## 1. Como rodar do zero
+O projeto demonstra implementação de APIs REST, persistência relacional, integridade de dados, tratamento padronizado de erros, testes de integração com PostgreSQL e automação de CI.
 
-**Pré-requisitos:** Java 21, Maven 3.9+ e Docker com Docker Compose.
+## Visão geral
 
-```bash
-git clone https://github.com/valeskaandressa27-ai/feed-novidades-api.git
-cd feed-novidades-api
+- Cadastro de lojas e clientes.
+- Cadastro de clientes com e-mail único e normalizado.
+- Relacionamento entre clientes e lojas seguidas.
+- Publicação de novidades com texto e preço opcional.
+- Feed personalizado, ordenado das publicações mais recentes para as mais antigas.
+- Limite configurável para o feed, com máximo de 50 registros.
+- Tratamento consistente de erros HTTP e validações.
+- Testes de integração com PostgreSQL real por meio do Testcontainers.
 
-docker compose up -d        # sobe o PostgreSQL
-mvn spring-boot:run         # sobe a API em http://localhost:8080
-```
+## Tecnologias
 
-O Flyway cria as tabelas automaticamente na primeira execução. O compose usa valores padrão, então **não é preciso criar `.env`**; copie `.env.example` para `.env` só se quiser mudar usuário, senha ou porta do banco. O Spring **não** lê o `.env`: se mudar esses valores, exporte também `DB_URL`, `DB_USER` e `DB_PASSWORD` (os nomes estão no `.env.example`).
+| Área | Tecnologias |
+|---|---|
+| Linguagem | Java 21 |
+| Framework | Spring Boot 3.5.16 |
+| Persistência | Spring Data JPA / Hibernate |
+| Banco de dados | PostgreSQL 16 |
+| Migrações | Flyway |
+| Validação | Bean Validation |
+| Testes | JUnit 5, Spring Boot Test e Testcontainers |
+| Build | Maven |
+| Ambiente local | Docker Compose |
+| Integração contínua | GitHub Actions |
 
-**Dados de exemplo (opcional):** com o banco vazio, rode
+## Arquitetura e decisões técnicas
 
-```bash
-mvn spring-boot:run -Dspring-boot.run.profiles=seed
-```
+A aplicação está organizada **por funcionalidade/domínio**, separando os módulos de loja, cliente, seguidor, novidade, feed e tratamento de erros. Dentro de cada módulo, as responsabilidades de controller, service, repository e DTO ficam próximas.
 
-Cria 3 lojas, 3 clientes, os vínculos de seguidores e 7 novidades. Se o banco já tiver dados, o seed não faz nada.
+### Estratégia do feed: fan-out on read
 
-Para parar o banco: `docker compose down` (acrescente `-v` para apagar os dados).
+A publicação de uma novidade grava um único registro. O feed é montado quando o cliente consulta a API, por meio de um JOIN entre novidades e seguidores, com ordenação e limite executados no PostgreSQL.
 
-## 2. Como rodar os testes
+Essa estratégia foi escolhida porque o cenário considera publicações relativamente pouco frequentes e lojas que podem ter muitos seguidores. Assim, evita-se replicar cada publicação para milhares de feeds no momento da escrita.
 
-```bash
-mvn test
-```
-
-Os testes são de integração e usam **PostgreSQL real via Testcontainers**: precisam do Docker em execução, mas **não** dependem do `docker compose up` (o Testcontainers sobe um container próprio e descartável). Se o Docker não estiver disponível, os testes falham de propósito, em vez de trocar o banco por outro.
-
-Se aparecer `Could not find a valid Docker environment` ou `client version ... is too old`, confirme que o Docker está aberto e atualize o projeto (o `pom.xml` já fixa o Testcontainers 1.21.4, compatível com Docker 29+).
-
-Cobertura: feed (só lojas seguidas, ordem, desempate, limite padrão/máximo/inválido), seguir (sucesso, 404, 409 e requisições simultâneas), publicar novidade (limites de texto, preço, loja inexistente, JSON malformado), cliente (e-mail duplicado, campos obrigatórios) e loja.
-
-## 3. Exemplos de chamadas
-
-Também em [`requests.http`](requests.http). Num banco vazio os ids começam em 1.
-
-```bash
-# Criar loja -> 201
-curl -s -X POST localhost:8080/lojas -H 'Content-Type: application/json' \
-  -d '{"nome":"Cafeteria Aurora"}'
-# {"id":1,"nome":"Cafeteria Aurora"}
-
-# Criar cliente -> 201 (e-mail é guardado em minúsculas)
-curl -s -X POST localhost:8080/clientes -H 'Content-Type: application/json' \
-  -d '{"nome":"Ana Souza","email":"ana@exemplo.com"}'
-# {"id":1,"nome":"Ana Souza","email":"ana@exemplo.com"}
-
-# Cliente 1 segue a loja 1 -> 201
-curl -s -X POST localhost:8080/clientes/1/seguindo/1
-# {"clienteId":1,"lojaId":1}
-
-# Loja 1 publica novidade (preco é opcional) -> 201
-curl -s -X POST localhost:8080/lojas/1/novidades -H 'Content-Type: application/json' \
-  -d '{"texto":"Novo blend de café chegou!","preco":32.90}'
-# {"id":1,"lojaId":1,"lojaNome":"Cafeteria Aurora","texto":"Novo blend de café chegou!","preco":32.90,"criadaEm":"2026-11-03T15:04:05.123456Z"}
-
-# Feed do cliente 1 -> 200 (limite padrão 20, máximo 50)
-curl -s 'localhost:8080/clientes/1/feed?limite=10'
-# [{"id":1,"lojaId":1,"lojaNome":"Cafeteria Aurora", ... }]
-```
-
-### Formato de erro (igual em toda a API)
-
-```json
-{
-  "status": 422,
-  "erro": "VALIDACAO",
-  "mensagem": "Dados inválidos",
-  "detalhes": ["texto: deve ter no máximo 500 caracteres"]
-}
-```
-
-| Situação | Status | `erro` |
-|---|---|---|
-| Campo ausente/inválido, JSON malformado, id ou `limite` não numérico, `limite` < 1 | 422 | `VALIDACAO` |
-| Cliente ou loja inexistente (e rota inexistente) | 404 | `NAO_ENCONTRADO` |
-| E-mail já cadastrado; cliente já segue a loja | 409 | `CONFLITO` |
-| Método não permitido, tipo de mídia não suportado | 405 / 415 | `REQUISICAO_INVALIDA` |
-| Falha inesperada (sem stack trace na resposta) | 500 | `ERRO_INTERNO` |
-
-## 4. Estrutura de pastas
-
-```
-src/main/java/com/feednovidades/
-├── FeedNovidadesApplication.java
-├── loja/        entidade, repositório, serviço, controller e DTOs de loja
-├── cliente/     idem para cliente
-├── seguidor/    entidade com chave composta + serviço e endpoint de seguir
-├── novidade/    entidade, DTOs, serviço de publicação e a consulta do feed
-├── feed/        endpoint e regra do feed (limite padrão/máximo)
-├── erro/        formato único de erro, exceções e @RestControllerAdvice
-└── seed/        carga de dados de exemplo (só com o perfil "seed")
-src/main/resources/
-├── application.yml
-└── db/migration/V1__criar_tabelas.sql
-src/test/java/com/feednovidades/   testes de integração (Testcontainers)
-docker-compose.yml  .env.example  requests.http  BACKLOG.md
-.github/workflows/ci.yml
-```
-
-Organização **por funcionalidade** (não por camada): cada pasta tem tudo o que aquele assunto precisa, com controller → service → repository dentro dela.
-
-## 5. Decisões técnicas
-
-As decisões principais também estão registradas como ADRs em [`docs/adr`](docs/adr).
-
-
-**Feed com fan-out on read.** O enunciado diz que o cliente abre o feed várias vezes por dia, a loja publica poucas vezes e lojas grandes passam de 100 mil seguidores. No *fan-out on write*, cada publicação de uma loja grande copiaria a novidade para 100 mil feeds, e isso para uma escrita rara. No *fan-out on read* a publicação é um único INSERT e o feed é montado na leitura, por um JOIN com `ORDER BY ... LIMIT` feito no banco (nada é carregado em memória para filtrar):
+Consulta conceitual utilizada:
 
 ```sql
-select n.* from novidade n
+select n.*
+from novidade n
 join seguidor s on s.loja_id = n.loja_id
 where s.cliente_id = :clienteId
 order by n.criada_em desc, n.id desc
 limit :limite
 ```
 
-O custo da leitura cresce com quantas lojas o cliente segue, não com quantos seguidores a loja tem, que é o lado que o enunciado diz ser grande.
+### Integridade e concorrência
 
-**Índice `(loja_id, criada_em DESC, id DESC)`.** Entrega as novidades de cada loja já ordenadas. Em uma medição pontual com dados sintéticos (2.000 lojas, 200 mil novidades, cliente seguindo 5 lojas, PostgreSQL 16 local) o plano usou esse índice e o feed levou cerca de 0,3 ms. O `id` no índice acompanha o desempate da ordenação.
+- A tabela `seguidor` utiliza chave primária composta por `(cliente_id, loja_id)`, impedindo vínculos duplicados.
+- A operação de seguir utiliza `INSERT ... ON CONFLICT DO NOTHING`. A decisão de inserir ou ignorar o vínculo é atômica no PostgreSQL; quando nenhuma linha é inserida, a API responde com conflito (409).
+- A estratégia evita uma condição de corrida que poderia ocorrer ao usar `save()` do JPA com chave atribuída e operações concorrentes.
+- O e-mail é normalizado para minúsculas antes da persistência, e uma constraint `UNIQUE` garante a unicidade no banco.
+- As validações são aplicadas na camada da API e reforçadas por constraints no banco, incluindo texto entre 1 e 500 caracteres e preço maior que zero.
 
-**Desempate por `id`.** Duas novidades podem ter o mesmo `criada_em`; sem desempate a ordem poderia variar entre chamadas.
+### Consulta e ordenação
 
-**`seguidor` com PK composta `(cliente_id, loja_id)` e inserção atômica.** O próprio banco impede seguir duas vezes. O vínculo é criado com `INSERT ... ON CONFLICT DO NOTHING`: o PostgreSQL decide, em um único comando, se o par já existe, e o serviço responde 409 quando nenhuma linha é inserida. Isso vale também para requisições simultâneas do mesmo par (só uma insere). Não uso `save()` do JPA aqui: com chave atribuída ele faz `merge()`, que primeiro consulta a linha e, sob concorrência, podia achar o vínculo criado por outra requisição e responder 201 sem inserir nada (bug encontrado pelo teste de concorrência no CI).
+- O feed usa `ORDER BY criada_em DESC, id DESC` para manter uma ordenação determinística quando duas novidades possuem o mesmo timestamp.
+- O índice `(loja_id, criada_em DESC, id DESC)` auxilia a consulta das novidades por loja já na ordem necessária.
+- O feed é consultado no banco, sem carregar todas as novidades para filtrar em memória.
 
-**E-mail normalizado em minúsculas** antes de salvar, para `Ana@x.com` e `ana@x.com` contarem como o mesmo e-mail. A constraint `UNIQUE` é a garantia final.
+### Persistência e datas
 
-**Validação em duas camadas.** Bean Validation nos DTOs (mensagens claras) + `CHECK` no banco (`preco > 0`, texto entre 1 e 500 caracteres): se alguém inserir dados por outro caminho, o banco ainda protege.
+- O Flyway é responsável pela evolução do schema.
+- O Hibernate utiliza `ddl-auto: validate`, verificando se o mapeamento das entidades corresponde ao schema criado pelas migrations.
+- As entradas e saídas da API usam DTOs (records), evitando expor diretamente as entidades JPA.
+- Os timestamps usam `TIMESTAMPTZ`; a aplicação preenche `criada_em` em UTC, com `DEFAULT now()` no banco como proteção adicional.
+- Os testes usam PostgreSQL via Testcontainers em vez de H2 para validar constraints, tipos, ordenação e concorrência no mesmo banco utilizado pela aplicação.
 
-**422 para entrada inválida** (e não 400), incluindo JSON malformado e parâmetros não numéricos, para o cliente da API ter uma regra só: 422 = a requisição não pôde ser processada como veio.
+As decisões arquiteturais também estão documentadas em [docs/adr](docs/adr).
 
-**`limite`:** ausente = 20; maior que 50 = **limitado a 50** (sem erro); menor que 1 ou não numérico = 422. O enunciado não define o caso "acima de 50"; limitar é a opção mais tolerante para quem consome.
+## Endpoints
 
-**Flyway manda no schema; o Hibernate só valida** (`ddl-auto: validate`). Se entidade e migration divergirem, a aplicação não sobe.
+| Método | Rota | Descrição |
+|---|---|---|
+| POST | `/lojas` | Cadastra uma loja. |
+| POST | `/clientes` | Cadastra um cliente; o e-mail deve ser único. |
+| POST | `/clientes/{id}/seguindo/{lojaId}` | Faz um cliente seguir uma loja. |
+| POST | `/lojas/{id}/novidades` | Publica uma novidade para uma loja. |
+| GET | `/clientes/{id}/feed?limite=20` | Retorna o feed personalizado do cliente. |
 
-**DTOs (records)** nas entradas e saídas: as entidades JPA não vazam para a API.
+**Regras do feed:** o limite padrão é 20; valores acima de 50 são limitados a 50; valores menores que 1 ou não numéricos retornam 422.
 
-**Datas.** `TIMESTAMPTZ`; `criada_em` é preenchido pela aplicação em UTC (microssegundos, a precisão do PostgreSQL), com `DEFAULT now()` no banco como rede de segurança.
+## Como executar localmente
 
-**Testcontainers em vez de H2**, porque o que importa testar (constraints, tipos, ordenação, concorrência) é comportamento do PostgreSQL. Um container compartilhado por toda a execução; o banco é limpo antes de cada teste.
+### Pré-requisitos
 
-**Seed por perfil** (`seed`): nunca roda por acidente nem durante os testes.
+- Java 21
+- Maven 3.9+
+- Docker com Docker Compose
 
-**Sem autenticação**, conforme o enunciado: os ids vêm na rota.
+### 1. Clonar o repositório
 
-## 6. O que ficou de fora e o que eu faria com mais tempo
+```bash
+git clone https://github.com/valeskaandressa27-ai/feed-novidades-api.git
+cd feed-novidades-api
+```
 
-- **Paginação por cursor** no feed (chave `(criada_em, id)`): hoje só há `limite`, então não dá para ver além das N mais recentes.
-- **Deixar de seguir** (`DELETE /clientes/{id}/seguindo/{lojaId}`), documentação **OpenAPI** e testes unitários dos serviços.
-- **Clientes que seguem muitas lojas com muito histórico:** a consulta lê as novidades de todas as lojas seguidas antes de ordenar. Uma evolução é buscar as N mais recentes *por loja* (`LATERAL`) e só então juntar, ou limitar por janela de tempo.
-- **Cache** do feed (ex.: Redis, invalidado na publicação) se a leitura virar gargalo.
-- **Autenticação/autorização** e limite de taxa.
-- Um **`mvnw`** (Maven Wrapper) para dispensar a instalação do Maven.
-- **Migrar para Spring Boot 4.x**: a linha 3.5 (usada aqui, na última versão 3.5.16) encerrou o suporte open source em 30/06/2026.
+### 2. Iniciar o PostgreSQL
+
+```bash
+docker compose up -d
+```
+
+O Docker Compose utiliza valores padrão; não é necessário criar um arquivo `.env`. O arquivo `.env.example` pode ser copiado para personalizar usuário, senha ou porta. O Spring não carrega o `.env` automaticamente: ao alterar essas configurações, exporte também `DB_URL`, `DB_USER` e `DB_PASSWORD`, conforme os nomes definidos no exemplo.
+
+### 3. Iniciar a API
+
+```bash
+mvn spring-boot:run
+```
+
+A API ficará disponível em:
+
+`http://localhost:8080`
+
+O Flyway cria as tabelas automaticamente na primeira execução.
+
+### Dados de exemplo (opcional)
+
+Com o banco vazio, execute:
+
+```bash
+mvn spring-boot:run -Dspring-boot.run.profiles=seed
+```
+
+O perfil `seed` cria 3 lojas, 3 clientes, os vínculos de seguidores e 7 novidades. Se o banco já tiver dados, a carga não altera o conteúdo existente.
+
+Para parar o banco:
+
+```bash
+docker compose down
+```
+
+Para remover também os dados persistidos, use `docker compose down -v`.
+
+## Exemplos de requisições
+
+Os exemplos também estão disponíveis em [requests.http](requests.http). Em um banco vazio, os IDs começam em 1.
+
+### Criar uma loja
+
+```bash
+curl -s -X POST localhost:8080/lojas \
+  -H 'Content-Type: application/json' \
+  -d '{"nome":"Cafeteria Aurora"}'
+```
+
+Resposta esperada: `201 Created`.
+
+```json
+{"id":1,"nome":"Cafeteria Aurora"}
+```
+
+### Criar um cliente
+
+```bash
+curl -s -X POST localhost:8080/clientes \
+  -H 'Content-Type: application/json' \
+  -d '{"nome":"Ana Souza","email":"ana@exemplo.com"}'
+```
+
+Resposta esperada: `201 Created`. O e-mail é armazenado em minúsculas.
+
+```json
+{"id":1,"nome":"Ana Souza","email":"ana@exemplo.com"}
+```
+
+### Seguir uma loja
+
+```bash
+curl -s -X POST localhost:8080/clientes/1/seguindo/1
+```
+
+Resposta esperada: `201 Created`.
+
+```json
+{"clienteId":1,"lojaId":1}
+```
+
+### Publicar uma novidade
+
+O campo `preco` é opcional.
+
+```bash
+curl -s -X POST localhost:8080/lojas/1/novidades \
+  -H 'Content-Type: application/json' \
+  -d '{"texto":"Novo blend de café chegou!","preco":32.90}'
+```
+
+Resposta esperada: `201 Created`.
+
+```json
+{
+  "id": 1,
+  "lojaId": 1,
+  "lojaNome": "Cafeteria Aurora",
+  "texto": "Novo blend de café chegou!",
+  "preco": 32.90,
+  "criadaEm": "2026-11-03T15:04:05.123456Z"
+}
+```
+
+### Consultar o feed
+
+```bash
+curl -s 'localhost:8080/clientes/1/feed?limite=10'
+```
+
+Resposta esperada: `200 OK`, com as novidades das lojas seguidas pelo cliente, da mais recente para a mais antiga.
+
+## Tratamento de erros
+
+A API utiliza um formato padronizado de resposta:
+
+```json
+{
+  "status": 422,
+  "erro": "VALIDACAO",
+  "mensagem": "Dados inválidos",
+  "detalhes": [
+    "texto: deve ter no máximo 500 caracteres"
+  ]
+}
+```
+
+| Situação | HTTP | Código |
+|---|---:|---|
+| Campo ausente/inválido, JSON malformado ou parâmetro inválido | 422 | `VALIDACAO` |
+| Cliente ou loja inexistente, ou rota inexistente | 404 | `NAO_ENCONTRADO` |
+| E-mail já cadastrado ou cliente já segue a loja | 409 | `CONFLITO` |
+| Método não permitido ou tipo de mídia não suportado | 405 / 415 | `REQUISICAO_INVALIDA` |
+| Falha inesperada, sem stack trace na resposta | 500 | `ERRO_INTERNO` |
+
+## Testes e integração contínua
+
+Execute os testes com:
+
+```bash
+mvn test
+```
+
+Os testes de integração utilizam **PostgreSQL real via Testcontainers**. É necessário ter Docker em execução, mas não é preciso iniciar o serviço do `docker-compose`: o Testcontainers sobe um container próprio e descartável. Se o Docker não estiver disponível, os testes falham intencionalmente, sem substituir o PostgreSQL por outro banco.
+
+A suíte cobre:
+
+- Feed: lojas seguidas, ordenação, desempate, limite padrão, máximo e valores inválidos.
+- Seguir loja: sucesso, recursos inexistentes, vínculo duplicado e requisições simultâneas.
+- Publicação: limites de texto, preço, loja inexistente e JSON malformado.
+- Clientes: e-mail duplicado e campos obrigatórios.
+- Lojas: operações de cadastro.
+
+O GitHub Actions executa `mvn -B verify` em pushes e pull requests, usando Java 21 e Docker no runner.
+
+**Diagnóstico do Testcontainers:** se aparecer `Could not find a valid Docker environment`, confirme que o Docker está ativo. O projeto fixa Testcontainers 1.21.4 para compatibilidade com versões recentes do Docker Engine.
+
+## Estrutura do projeto
+
+```text
+src/main/java/com/feednovidades/
+├── FeedNovidadesApplication.java
+├── loja/        entidade, repositório, serviço, controller e DTOs
+├── cliente/     entidade, repositório, serviço, controller e DTOs
+├── seguidor/    entidade com chave composta, serviço e endpoint
+├── novidade/    entidade, DTOs, serviço de publicação e consulta do feed
+├── feed/        endpoint e regra de limite do feed
+├── erro/        formato de erro, exceções e @RestControllerAdvice
+└── seed/        carga de dados de exemplo (perfil seed)
+
+src/main/resources/
+├── application.yml
+└── db/migration/V1__criar_tabelas.sql
+
+src/test/java/com/feednovidades/   testes de integração
+docker-compose.yml
+.env.example
+requests.http
+BACKLOG.md
+.github/workflows/ci.yml
+```
+
+## Próximas evoluções
+
+Os itens abaixo são **planejados e não fazem parte da implementação atual**:
+
+- Paginação por cursor no feed, usando a chave `(criada_em, id)`.
+- Endpoint para deixar de seguir uma loja: `DELETE /clientes/{id}/seguindo/{lojaId}`.
+- Documentação interativa com OpenAPI/Swagger.
+- Testes unitários específicos para os serviços.
+- Otimização para clientes que seguem muitas lojas e possuem grande histórico de novidades, avaliando consulta com `LATERAL` ou janela temporal.
+- Cache do feed (por exemplo, Redis), caso medições indiquem gargalo de leitura.
+- Autenticação, autorização e rate limiting.
+- Maven Wrapper para padronizar a execução sem instalação prévia do Maven.
+- Atualização futura para uma linha do Spring Boot com suporte open source ativo. A versão 3.5.16 utilizada neste projeto foi a última versão open source da linha 3.5.x.
+
+## Status do projeto
+
+Projeto desenvolvido para demonstrar conhecimentos em desenvolvimento backend e construção de APIs REST com Java, Spring Boot e PostgreSQL, incluindo modelagem relacional, concorrência, testes de integração e CI.
+
+---
+
+Desenvolvido por [Valeska Oliveira](https://github.com/valeskaandressa27-ai).
